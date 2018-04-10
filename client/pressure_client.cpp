@@ -1,15 +1,15 @@
 /*
 * @Author: dummy
 * @Date:   2018-04-09 15:27:30
-* @Last Modified by:   dummy
-* @Last Modified time: 2018-04-09 22:01:45
+* @Last Modified by:   triplesheep
+* @Last Modified time: 2018-04-10 12:11:18
 */
 
 #include "pressure_client.h"
 #include <sys/sysinfo.h>
 #include <pthread.h>
 
-const int MAX_EVENT_NUMBER = 1000;
+const int MAX_EVENT_NUMBER = 10000;
 
 PressureClient::PressureClient(char* ip, int port, int concurrency, int request, void* data) : 
                             _concurrency(concurrency), _request(request), _data(data) {
@@ -83,6 +83,7 @@ void* PressureClient::pressure_connect(void* arg) {
         } else {
             --fd_count;
         }
+        close(sockfd);
     }
 
     while (fd_count) {
@@ -107,6 +108,7 @@ void* PressureClient::pressure_connect(void* arg) {
                 if (send_ret == 0)  ++success;
                 --fd_count;
             }
+            close(sockfd);
         }
     }
     pressure_client->_thread_pool[tid]._single_success = success;
