@@ -19,7 +19,7 @@ clean :
 	rm -rf $(LIB)
 	rm -rf *.o
 	rm -rf test/simple.log
-	rm -rf ${TEST}
+	rm -rf ${TEST_EXEC}
 
 output : $(LIB)
 	rm -rf *.o *~
