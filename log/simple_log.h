@@ -2,7 +2,7 @@
 * @Author: dummy
 * @Date:   2018-04-09 21:47:27
 * @Last Modified by:   triplesheep
-* @Last Modified time: 2018-04-10 17:07:33
+* @Last Modified time: 2018-04-11 14:48:05
 */
 
 
@@ -48,15 +48,14 @@ public:
         static SimpleLog log;
         return &log;
     }
-    void init(const char* file_path, LOGLEVEL level);
-    void run();
-    void release();
+    int init(const char* file_path, LOGLEVEL level);
+    void release_thread();
     void append(LOGLEVEL level, int line, std::string file, std::string content);
-    static void* clock_to_write(void* arg);
     static void* block_to_write(void* arg);
     static void clock_sig_handler(int sig);
     static bool _timeout;
     bool _inited;
+    bool _run;
     int _filefd;
     pthread_mutex_t _lock;
     LOGLEVEL _log_level;
@@ -65,7 +64,7 @@ private:
     SimpleLog();
     int write_log();
     pthread_t _tid_block;
-    pthread_t _tid_clock;
+    struct sigaction _old_act;
 };
 
 #endif
