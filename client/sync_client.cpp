@@ -2,7 +2,7 @@
 * @Author: dummy
 * @Date:   2018-04-09 13:39:25
 * @Last Modified by:   triplesheep
-* @Last Modified time: 2018-04-12 20:26:16
+* @Last Modified time: 2018-04-12 20:32:48
 */
 #include "sync_client.h"
 #include <sys/types.h>
@@ -14,7 +14,6 @@
 #include <strings.h>
 #include <arpa/inet.h>
 #include <string.h>
-#include <iostream>
 
 SyncClient::SyncClient() : _sockfd(-1) , _connected(false) { }
 

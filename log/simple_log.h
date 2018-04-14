@@ -2,7 +2,7 @@
 * @Author: dummy
 * @Date:   2018-04-09 21:47:27
 * @Last Modified by:   triplesheep
-* @Last Modified time: 2018-04-11 14:48:05
+* @Last Modified time: 2018-04-12 20:34:29
 */
 
 
@@ -13,7 +13,7 @@
 #include <signal.h>
 #include <queue>
 
-/* Recently, the log macro doesn't support record args, only simple string are supported */
+/* Recently, the log macro already support args */
 #define SIMPLE_LOG_TRACE(fmt, ...) {\
     char buff[300] = {'\0'};\
     sprintf(buff, fmt, ##__VA_ARGS__);\

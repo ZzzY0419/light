@@ -18,11 +18,15 @@ PRESSURE_OBJS = pressure_client.o
 SYNC_LIB = libsync.a
 PRESSURE_LIB = libpressure.a
 
-stest: $(SYNC_LIB) $(SYNC_TEST)
+stest : $(SYNC_LIB) $(SYNC_TEST)
 
 $(SYNC_LIB) : $(SYNC_OBJS)
 	$(AR) rc $@ $^
 
+ptest : $(PRESSURE_LIB) $(PRESSURE_TEST)
+
+$(PRESSURE_LIB) : $(PRESSURE_OBJS)
+	$(AR) rc $@ $^
 
 ###### all make #########
 
@@ -33,7 +37,7 @@ test : $(LIB) $(TEST_EXEC) output
 clean :
 	rm -rf ./output/*
 	rm -rf $(LIB)
-	rm -rf $(SYNC_LIB)
+	rm -rf *.a
 	rm -rf *.o
 	rm -rf ${TEST_EXEC}
 
