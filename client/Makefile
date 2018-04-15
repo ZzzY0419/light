@@ -1,3 +1,4 @@
+WORKROOT = ../
 CPPFLAGS = -std=c++11
 CC = g++ $(CPPFLAGS)
 AR = ar
@@ -5,8 +6,10 @@ SRC := $(wildcard *.cpp)
 OBJS := $(SRC:%.cpp=%.o)
 LIB = libclient.a
 LDFLAGS = -L./ \
+		  -L$(WORKROOT)/log/output/lib -lsimple_log \
 		  -lpthread
-INCLUDE = -I./
+INCLUDE = -I./ \
+		  -I$(WORKROOT)/log/output/include
 CFLAGS = $(INCLUDE) -g
 TEST_EXEC = test/test_sync_client test/test_pressure_client
 
@@ -40,6 +43,7 @@ clean :
 	rm -rf *.a
 	rm -rf *.o
 	rm -rf ${TEST_EXEC}
+	rm -rf ./test/*.log
 
 output : $(LIB)
 	rm -rf *.o *~
@@ -53,8 +57,8 @@ output : $(LIB)
 $(LIB) : $(OBJS)
 	$(AR) rc $@ $^
 
-.o : %.cpp
-	$(CC) -c -o $@ $<
+%.o : %.cpp
+	$(CC) -c -o $@ $< $(INCLUDE)
 
 # $(TEST_EXEC) : $(wildcard test/*.cpp)
 # 	$(CC) $(CFLAGS) -o $@ $^ -lclient $(LDFLAGS)

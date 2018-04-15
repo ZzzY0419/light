@@ -2,7 +2,7 @@
 * @Author: dummy
 * @Date:   2018-04-09 22:01:09
 * @Last Modified by:   triplesheep
-* @Last Modified time: 2018-04-11 14:50:55
+* @Last Modified time: 2018-04-15 19:28:58
 */
 
 #include "simple_log.h"
@@ -21,6 +21,8 @@ SimpleLog::SimpleLog() : _inited(false), _run(false) {}
 
 SimpleLog::~SimpleLog() {
     if (_inited) {
+        if (!_log_queue.empty())
+            write_log();
         _run = false;
         release_thread();
         pthread_mutex_destroy(&_lock);
