@@ -2,11 +2,12 @@
 * @Author: triplesheep
 * @Date:   2018-04-17 21:22:37
 * @Last Modified by:   triplesheep
-* @Last Modified time: 2018-04-17 22:26:35
+* @Last Modified time: 2018-04-18 22:29:59
 */
 
 #include "async_client.h"
 #include "simple_log.h"
+#include <limits.h>
 #include <sys/sysinfo.h>
 #include <sys/epoll.h>
 #include <unistd.h>
@@ -39,7 +40,7 @@ AsyncClient(int threadnum = 0, int connect_pool_size = 1000) : _threadnum(thread
     }
 }
 
-int init() {
+void init() {
     init_threads();
 }
 
@@ -69,18 +70,19 @@ void* async_connect(void* arg) {
     ThreadArg& thread_arg = client->_threads[tid];
     struct epoll_event events[client->_connect_pool_size];
     while (thread_arg.run) {
-        bool empty = true;
+        pthread_mutex_lock(&thread_arg.lock);
         while (!client->_connect_pool.empty()) {
-            /*error here, may be i need smart point*/
-            int connect = client->_connect_pool.front().fd;
+            EpollData* data = client->_connect_pool.front();
+            int connect = data->fd;
             client->_connect_pool.pop();
             struct epoll_event event;
-            event.data.fd = connect;
+            event.data.ptr = data;
             event.events = EPOLLOUT;
-            epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_ADD, connect, &event);
-            empty = false;
+            if (epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_ADD, connect, &event) == 0)
+                ++thread_arg.size;
         }
-        if (!emtpy) {
+        pthread_mutex_unlock(&thread_arg.lock);
+        if (thread_arg.size) {
             pthread_mutex_lock(&thread_arg.lock);
             int ret = epoll_wait(thread_arg.epoll_id, events, client->_connect_pool_size, 1000);
             if (ret < 0) {
@@ -101,12 +103,110 @@ void* async_connect(void* arg) {
                         continue;
                     }
                     if (errno == 0) {
-                        /*epoll_event_add();*/
-                        epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+                        EpollData* data = static_cast<EpollData*>(events[i].data.ptr);
+                        epoll_event_add(data)
+                        epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_DEL, data->fd, NULL);
                     }
                 }
                 pthread_mutex_unlock(&thread_arg.lock);
             }
+            thread_arg.size -= ret;
         }
     }
+    return arg;
+}
+
+void epoll_event_add(EpollData* data) {
+    /*chose the thread with min fd size*/
+    pthread_t tid;
+    int min_fd = INT_MAX;
+    bool begin = true;
+    for (auto thread : _threads) {
+        if (begin) {    /*skip connect thread*/
+            begin = false;
+            continue;
+        }
+        if (thread.second.size > min_fd) {
+            min_fd = thread.second.size;
+            tid = thread.first;
+        }
+    }
+    /*add event in this thread epoll*/
+    pthread_mutex_lock(_threads[tid].lock);
+    struct epoll_event event;
+    event.data.ptr = data;
+    event.events = EPOLLOUT;
+    /*reset fd block*/
+    fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) & (~O_NONBLOCK));  /*use ~ and & to del*/
+    if (epoll_ctl(_threads[tid].epoll_id, EPOLL_CTL_ADD, data->fd, &event) == 0)
+        ++_threads[tid].size;
+    pthread_mutex_unlock(_threads[tid].lock);
+    return;
+}
+
+void* epoll_thread_talk(void* arg) {
+    AsyncClient* client = static_cast<AsyncClient*>(arg);
+    pthread_t tid = pthread_self();
+    ThreadArg& thread_arg = client->_threads[tid];
+    struct epoll_event events[client->_connect_pool_size];
+    while (thread_arg.run) {
+        if (thread_arg.size) {
+            pthread_mutex_lock(&thread_arg.lock);
+            int ret = epoll_wait(thread_arg.epoll_id, events, client->_connect_pool_size, 1000);
+            if (ret < 0) {
+                pthread_mutex_unlock(&thread_arg.lock);
+                break;
+            }
+            if (ret == 0) {
+                pthread_mutex_unlock(&thread_arg.lock);
+                continue;
+            }
+            for (int i = 0; i < ret; ++i) {
+                EpollData* data = static_cast<EpollData*>(events[i].data.ptr);
+                if (events[i].event | EPOLLOUT) {
+                    char* message = static_cast<char*>(data->message);
+                    if (send(data->fd, message, strlen(message), 0) == strlen(message)) {
+                        struct epoll_event event;
+                        event.data.ptr = data;
+                        event.events = EPOLLOIN;
+                        epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_MOD, data->fd, &event);
+                    } else {
+                        epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_DEL, data->fd, NULL);
+                        close(data->fd);
+                        --thread_arg.size;
+                    }
+                } else if (events[i].event | EPOLLIN) {
+                    if (recv(data->fd, data->callback.arg, data->callback.len, 0) > 0) {
+                        data->callback.callback(data->callback.arg);    /*call user's callback*/
+                    }
+                    epoll_ctl(thread_arg.epoll_id, EPOLL_CTL_DEL, data->fd, NULL);
+                    close(data->fd);
+                    --thread_arg.size;
+                }
+            }
+        }
+    }
+    return arg;
+}
+
+void unblock_connect(sockaddr_in addr, EpollData* data) {
+    int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    int reuse = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    data->fd = fd;
+    int ret = connect(data->fd, (struct sockaddr*)(&addr), sizeof(addr));
+    if (ret == 0) {
+        epoll_event_add(data);
+    } else if (errno == EINPROGRESS && _connect_pool.size() < _connect_pool_size) {
+        _connect_pool.push(data);
+    }
+}
+
+void async_single_talk(const char* ip, int port, EpollData* data) {
+    struct sock_addr addr;
+    bzero(&addr, sizeof(addr));
+    addr.sin_family = AF_INET;
+    inet_pton(AF_INET, ip, &addr.sin_addr);
+    addr.sin_port = port;
+    unblock_connect(addr, data);
 }
