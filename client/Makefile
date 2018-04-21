@@ -16,10 +16,13 @@ TEST_EXEC = test/test_sync_client test/test_pressure_client
 ###### single make ########
 SYNC_TEST = test/test_sync_client
 PRESSURE_TEST = test/test_pressure_client
+ASYNC_TEST = test/test_async_client
 SYNC_OBJS = sync_client.o
 PRESSURE_OBJS = pressure_client.o
+ASYNC_OBJS = async_client.o
 SYNC_LIB = libsync.a
 PRESSURE_LIB = libpressure.a
+ASYNC_LIB = libasync.a
 
 stest : $(SYNC_LIB) $(SYNC_TEST)
 
@@ -29,6 +32,11 @@ $(SYNC_LIB) : $(SYNC_OBJS)
 ptest : $(PRESSURE_LIB) $(PRESSURE_TEST)
 
 $(PRESSURE_LIB) : $(PRESSURE_OBJS)
+	$(AR) rc $@ $^
+
+atest : $(ASYNC_LIB) $(ASYNC_TEST)
+
+$(ASYNC_LIB) : $(ASYNC_OBJS)
 	$(AR) rc $@ $^
 
 ###### all make #########
@@ -68,3 +76,6 @@ $(SYNC_TEST) : test/test_sync_client.cpp
 
 $(PRESSURE_TEST) : test/test_pressure_client.cpp
 	$(CC) $(CFLAGS) -o $@ $^ -lpressure $(LDFLAGS)
+
+$(ASYNC_TEST) : test/test_async_client.cpp
+	$(CC) $(CFLAGS) -o $@ $^ -lasync $(LDFLAGS)
